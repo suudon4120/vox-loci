@@ -1,5 +1,6 @@
 import os
 import time
+import logging
 
 # ==========================================
 # 設定エリア
@@ -7,9 +8,12 @@ import time
 
 # 入力ファイル名と出力ファイル名
 INPUT_FILE = 'KYOTO2.txt'
-OUTPUT_FILE = 'kyoto_filtered.txt'
+OUTPUT_FILE = 'kyoto_filtered_actual.txt'
 # INPUT_FILE = 'all.txt'
 # OUTPUT_FILE = 'all-filtered.txt'
+
+file_root, file_ext = os.path.splitext(OUTPUT_FILE)
+LOG_FILE = f"{file_root}_log.txt"
 
 # テストモード設定 (Trueなら最初の N行 だけ処理して終了)
 # 動作確認のために最初は True で試すことをおすすめします
@@ -46,14 +50,45 @@ KEYWORDS_PLACE = [
 ALL_KEYWORDS = KEYWORDS_ENV + KEYWORDS_SENTIMENT + KEYWORDS_PLACE
 
 # ==========================================
+# ロギング設定（画面とファイルの両方に出す）
+# ==========================================
+def setup_logger():
+    # ロガーを作成
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+
+    # 既存のハンドラがあれば削除（重複出力防止）
+    if logger.hasHandlers():
+        logger.handlers.clear()
+
+    # ログのフォーマット（時間もあると便利）
+    formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%H:%M:%S')
+
+    # 1. ファイル出力設定
+    file_handler = logging.FileHandler(LOG_FILE, encoding='utf-8')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    # 2. 画面（コンソール）出力設定
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    
+    return logger
+
+# グローバルなロガーを準備
+logger = setup_logger()
+
+# ==========================================
 # 処理ロジック
 # ==========================================
 
 def filter_large_file():
-    print(f"処理を開始します: {INPUT_FILE} -> {OUTPUT_FILE}")
-    print(f"キーワード数: {len(ALL_KEYWORDS)}個")
+    logger.info(f"処理を開始します: {INPUT_FILE} -> {OUTPUT_FILE}")
+    logger.info(f"ログ保存先: {LOG_FILE}")
+    logger.info(f"キーワード数: {len(ALL_KEYWORDS)}個")
     if IS_TEST_MODE:
-        print(f"★テストモード: 最初の {TEST_LIMIT_LINES} 行のみ処理します")
+        logger.info(f"★テストモード: 最初の {TEST_LIMIT_LINES} 行のみ処理します")
 
     start_time = time.time()
     line_count = 0
@@ -71,7 +106,7 @@ def filter_large_file():
                 
                 # キーワード判定 (ORマッチング: どれか一つでも含まれればTrue)
                 # 高速化のため、ヒットしたらすぐループを抜ける (anyを使用)
-                # 変更案: (地名 OR 環境) AND (評価) の場合のみ抽出
+                # (地名 OR 環境) AND (評価) の場合のみ抽出
                 has_target = any(k in line_content for k in KEYWORDS_PLACE + KEYWORDS_ENV)
                 has_sentiment = any(k in line_content for k in KEYWORDS_SENTIMENT)
 
@@ -82,24 +117,24 @@ def filter_large_file():
                 # 進捗表示 (10万行ごと)
                 if line_count % 100000 == 0:
                     elapsed = time.time() - start_time
-                    print(f"処理中... {line_count:,} 行目 (ヒット: {hit_count:,} 件, {elapsed:.1f}秒経過)")
+                    logger.info(f"処理中... {line_count:,} 行目 (ヒット: {hit_count:,} 件, {elapsed:.1f}秒経過)")
 
                 # テストモードの上限チェック
                 if IS_TEST_MODE and line_count >= TEST_LIMIT_LINES:
-                    print("テスト上限に達したため終了します。")
+                    logger.info("テスト上限に達したため終了します。")
                     break
 
     except FileNotFoundError:
-        print(f"エラー: ファイル '{INPUT_FILE}' が見つかりません。")
+        logger.info(f"エラー: ファイル '{INPUT_FILE}' が見つかりません。")
         return
 
     total_time = time.time() - start_time
-    print("-" * 30)
-    print("処理完了")
-    print(f"総行数: {line_count:,}")
-    print(f"抽出件数: {hit_count:,}")
-    print(f"所要時間: {total_time:.1f}秒")
-    print(f"出力ファイル: {OUTPUT_FILE}")
+    logger.info("-" * 30)
+    logger.info("処理完了")
+    logger.info(f"総行数: {line_count:,}")
+    logger.info(f"抽出件数: {hit_count:,}")
+    logger.info(f"所要時間: {total_time:.1f}秒")
+    logger.info(f"出力ファイル: {OUTPUT_FILE}")
 
 if __name__ == "__main__":
     filter_large_file()
