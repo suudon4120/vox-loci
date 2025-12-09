@@ -5,11 +5,12 @@ import os
 # ここを変更するだけで、入出力ファイルや除外ルールを切り替えられます。
 # =========================================================
 
-# 入力ファイル名（読み込むファイル）
-INPUT_PATH = 'KYOTO2_100_processed.txt'
+# 入力ファイル名
+INPUT_PATH = 'KYOTO2_100_processed_tagged.txt'
 
-# 出力ファイル名（保存するファイル）
-OUTPUT_PATH = 'KYOTO2_100_processed_cleaned.txt'
+# 出力ファイル名
+root, ext = os.path.splitext(INPUT_PATH)
+OUTPUT_PATH = f"{root}_cleaned{ext}"
 
 # 除外したい行末パターンのリスト
 # ※ ここに条件を追加すれば、ロジックを変更せずに除外対象を増やせます
