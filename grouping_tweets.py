@@ -1,7 +1,7 @@
 import pandas as pd
 
 # 1. ファイル読み込みとパース（前回同様）
-file_path = 'KYOTO2_100_processed_tagged.txt'
+file_path = 'KYOTO2_100.txt'
 data = []
 
 with open(file_path, 'r', encoding='utf-8') as f:
