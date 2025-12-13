@@ -1,10 +1,20 @@
 import pandas as pd
 import folium
+import os
+
+INPUT_FILE = 'KYOTO2_10220_tagged_cleaned_mesh.csv'
+root, ext = os.path.splitext(INPUT_FILE)
+OUPUT_FILE = f'{root}_map.html'
 
 def create_tweet_map(input_file, output_file):
     # 1. データの読み込み
     try:
         df = pd.read_csv(input_file)
+
+        # mesh_code列が存在するか確認
+        if 'mesh_code' not in df.columns:
+            print(f"エラー: データ内に 'mesh_code' 列が見つかりません。")
+            return
     except FileNotFoundError:
         print(f"エラー: ファイル '{input_file}' が見つかりません。")
         return
@@ -24,22 +34,22 @@ def create_tweet_map(input_file, output_file):
     ]
     
     # mesh_idのユニークな値を取得し、色を割り当てる辞書を作成
-    unique_mesh_ids = df['mesh_id'].unique()
+    unique_mesh_codes = df['mesh_code'].unique()
     mesh_color_map = {}
-    for i, mesh_id in enumerate(unique_mesh_ids):
+    for i, code in enumerate(unique_mesh_codes):
         # 色のリストを循環して割り当て
         color = available_colors[i % len(available_colors)]
-        mesh_color_map[mesh_id] = color
+        mesh_color_map[code] = color
 
     # 4. 1行ずつデータを読み込んでピンを打つ
     for index, row in df.iterrows():
         lat = row['lat']
         lon = row['lon']
-        text = row['text']
-        mesh_id = row['mesh_id']
+        text = str(row['text'])
+        mesh_code = row['mesh_code']
         
         # mesh_idに対応する色を取得
-        icon_color = mesh_color_map[mesh_id]
+        icon_color = mesh_color_map[mesh_code]
         
         # マーカーを作成して地図に追加
         # popupの幅(max_width)を指定して、長い文章も見やすくします
@@ -47,7 +57,7 @@ def create_tweet_map(input_file, output_file):
             location=[lat, lon],
             popup=folium.Popup(text, max_width=300),
             icon=folium.Icon(color=icon_color),
-            tooltip=f"Mesh ID: {mesh_id}" # マウスオーバーでIDを表示（おまけ）
+            tooltip=f"Mesh Code: {mesh_code}" # マウスオーバーでIDを表示（おまけ）
         ).add_to(m)
 
     # 5. 地図をHTMLファイルとして保存
@@ -56,4 +66,4 @@ def create_tweet_map(input_file, output_file):
 
 # 実行
 if __name__ == "__main__":
-    create_tweet_map('kyoto_tweets_with_mesh.csv', 'kyoto_tweets_map.html')
+    create_tweet_map(INPUT_FILE, OUPUT_FILE)
