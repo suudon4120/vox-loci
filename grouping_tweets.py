@@ -1,62 +1,110 @@
 import pandas as pd
+import jismesh.utils as ju # 標準地域メッシュ用ライブラリ
+import os
 
-# 1. ファイル読み込みとパース（前回同様）
-file_path = 'KYOTO2_100.txt'
-data = []
+# =========================================================
+# 【設定エリア】
+# =========================================================
 
-with open(file_path, 'r', encoding='utf-8') as f:
-    for line in f:
-        line = line.strip()
-        if line.startswith('[source') or not line:
-            continue
-        
-        parts = line.split('\t')
-        
-        # データの格納用辞書
-        record = {}
-        
-        if len(parts) >= 5: # タブ区切りの場合
-            try:
-                # 日付情報がある場合は取得（1列目）
-                record['timestamp'] = parts[0]
-                record['lat'] = float(parts[2])
-                record['lon'] = float(parts[3])
-                record['text'] = parts[4]
-                data.append(record)
-            except ValueError:
-                continue
-        else: # スペース区切りの場合
-            parts = line.split()
-            if len(parts) >= 9:
-                try:
-                    # スペース区切りの場合、タイムスタンプが分割されているため結合
-                    record['timestamp'] = " ".join(parts[0:6])
-                    record['lat'] = float(parts[7])
-                    record['lon'] = float(parts[8])
-                    record['text'] = " ".join(parts[9:])
-                    data.append(record)
-                except ValueError:
-                    continue
+# 処理タイプ: 'csv' または 'txt'
+PROCESS_TYPE = 'csv' 
+INPUT_PATH = 'KYOTO2_10220_tagged_cleaned.csv'
+root, ext = os.path.splitext(INPUT_PATH)
 
-df = pd.DataFrame(data)
+# メッシュの細かさ (レベル)
+# 3: 3次メッシュ (約1km四方)
+# 4: 4次メッシュ (約500m四方)
+# 5: 5次メッシュ (約250m四方)
+# 6: 6次メッシュ (約125m四方)
+MESH_LEVEL = 5
 
-# 2. メッシュ情報の計算と付与 (200mメッシュ)
-lat_step = 0.0018
-lon_step = 0.0022
+# =========================================================
+# 【メイン処理ロジック】
+# =========================================================
 
-# メッシュ座標の計算（小数点4桁で丸めることで誤差を排除）
-df['mesh_lat'] = ((df['lat'] // lat_step) * lat_step).round(4)
-df['mesh_lon'] = ((df['lon'] // lon_step) * lon_step).round(4)
+def load_and_standard_mesh(input_path, process_type, mesh_level):
+    """
+    データを読み込み、日本標準地域メッシュコードを付与する関数
+    """
+    df = pd.DataFrame()
 
-# メッシュIDの生成（グルーピングキーとして使いやすい文字列）
-df['mesh_id'] = df['mesh_lat'].astype(str) + '_' + df['mesh_lon'].astype(str)
+    print(f"▶️ 読み込みモード: {process_type.upper()}")
 
-# 3. カラムの並べ替え（使いやすい順序に）
-output_columns = ['timestamp', 'mesh_id', 'lat', 'lon', 'mesh_lat', 'mesh_lon', 'text']
-df_output = df[output_columns]
+    # --- 1. データの読み込み ---
+    if process_type == 'txt':
+        data = []
+        try:
+            with open(input_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith('[source') or not line:
+                        continue
+                    parts = line.split('\t')
+                    record = {}
+                    if len(parts) >= 5: 
+                        record['timestamp'] = parts[0]
+                        record['lat'] = float(parts[2])
+                        record['lon'] = float(parts[3])
+                        record['text'] = parts[4]
+                        data.append(record)
+                    else: 
+                        parts = line.split()
+                        if len(parts) >= 9:
+                            record['timestamp'] = " ".join(parts[0:6])
+                            record['lat'] = float(parts[7])
+                            record['lon'] = float(parts[8])
+                            record['text'] = " ".join(parts[9:])
+                            data.append(record)
+            df = pd.DataFrame(data)
+            df.rename(columns={'lat': 'latitude', 'lon': 'longitude'}, inplace=True)
+        except Exception as e:
+            print(f"TXT読み込みエラー: {e}")
+            return pd.DataFrame()
 
-# 4. CSV形式で先頭を表示（確認用）
-print(df_output.head(10).to_csv(index=False))
+    elif process_type == 'csv':
+        try:
+            df = pd.read_csv(input_path, sep=None, engine='python')
+            df.rename(columns={'latitude': 'lat', 'longitude': 'lon'}, inplace=True)
+            # 緯度経度を数値変換してクリーニング
+            df['lat'] = pd.to_numeric(df['lat'], errors='coerce')
+            df['lon'] = pd.to_numeric(df['lon'], errors='coerce')
+            df.dropna(subset=['lat', 'lon'], inplace=True)
+        except Exception as e:
+            print(f"CSV読み込みエラー: {e}")
+            return pd.DataFrame()
 
-# (仮想的に)保存する場合のコード
-df_output.to_csv('kyoto_tweets_with_mesh.csv', index=False, encoding='utf-8-sig')
+    if df.empty:
+        print("警告: データが空です。")
+        return pd.DataFrame()
+
+    # --- 2. 標準地域メッシュコードの付与 ---
+    print(f"▶️ メッシュ変換: レベル {mesh_level} (JIS X 0410)")
+    
+    # jismeshを使って緯度経度からメッシュコードを一括変換
+    # to_meshcodeはSeries(列)を受け取ってSeriesを返せるので高速です
+    df['mesh_code'] = ju.to_meshcode(df['lat'], df['lon'], mesh_level)
+
+    # --- 3. 可視化・分析用に「メッシュの中心座標」も計算しておく ---
+    # メッシュコードだけだと地図にプロットしにくいため、そのメッシュの中心点(lat/lon)を求めます
+    lat_center, lon_center = ju.to_meshpoint(df['mesh_code'], lat_multiplier=0.5, lon_multiplier=0.5)
+    df['mesh_center_lat'] = lat_center
+    df['mesh_center_lon'] = lon_center
+
+    # --- 4. カラム整理 ---
+    # 必要な列を見やすい順序に
+    cols = ['timestamp', 'mesh_code', 'lat', 'lon', 'mesh_center_lat', 'mesh_center_lon', 'text']
+    # 元データに他の列があればそれも後ろに追加
+    remaining_cols = [c for c in df.columns if c not in cols]
+    
+    return df[cols + remaining_cols]
+
+# 実行
+df_final = load_and_standard_mesh(INPUT_PATH, PROCESS_TYPE, MESH_LEVEL)
+
+if not df_final.empty:
+    print("\n--- 処理結果の先頭5行 ---")
+    print(df_final[['mesh_code', 'lat', 'lon', 'text']].head().to_string(index=False))
+
+    OUTPUT_FILE = f'{root}_mesh.csv'
+    df_final.to_csv(OUTPUT_FILE, index=False, encoding='utf-8-sig')
+    print(f"\n✅ 完了: '{OUTPUT_FILE}' に保存しました。")
