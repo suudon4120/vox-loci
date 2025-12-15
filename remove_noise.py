@@ -1,5 +1,7 @@
 import pandas as pd
 import os
+import argparse
+import sys
 
 # =========================================================
 # 【設定エリア】
@@ -9,7 +11,18 @@ import os
 PROCESS_TYPE = 'csv'
 
 # 入力ファイル名
-INPUT_PATH = 'KYOTO2_10220_tagged.csv'
+parser = argparse.ArgumentParser(description="特定のタグを含む行を除去するプログラム")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+args = parser.parse_args
+if args.input:
+    INPUT_PATH = args.input
+    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
+else:
+    print("入力ファイルが指定されていません。")
+    INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+if not INPUT_PATH:
+    print("ファイル名が入力されませんでした。終了します。")
+    sys.exit()
 
 # 出力ファイル名
 root, ext = os.path.splitext(INPUT_PATH)
