@@ -13,7 +13,7 @@ PROCESS_TYPE = 'csv'
 # 入力ファイル名
 parser = argparse.ArgumentParser(description="特定のタグを含む行を除去するプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-args = parser.parse_args
+args = parser.parse_args()
 if args.input:
     INPUT_PATH = args.input
     print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
