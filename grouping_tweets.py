@@ -1,22 +1,35 @@
 import pandas as pd
 import jismesh.utils as ju # 標準地域メッシュ用ライブラリ
 import os
+import argparse
+import sys
 
 # =========================================================
 # 【設定エリア】
 # =========================================================
+parser = argparse.ArgumentParser(description="ツイートを読み込んで地域メッシュごとにメッシュコードを付与するプログラム")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+parser.add_argument("--process_type", type=str, default="csv", help="処理タイプ: 'csv' または 'txt' (デフォルト: csv)")
+parser.add_argument("--mesh_level", type=int, default=5, help="メッシュの細かさ (デフォルト: 5次メッシュ(約250m四方))")
+args = parser.parse_args()
 
-# 処理タイプ: 'csv' または 'txt'
-PROCESS_TYPE = 'csv' 
-INPUT_PATH = 'KYOTO2_10220_tagged_cleaned.csv'
+if args.input:
+    INPUT_PATH = args.input
+    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
+else:
+    print("入力ファイルが指定されていません。")
+    INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+if not INPUT_PATH:
+    print("ファイル名が入力されませんでした。終了します。")
+    sys.exit()
 root, ext = os.path.splitext(INPUT_PATH)
-
+PROCESS_TYPE = args.process_type
 # メッシュの細かさ (レベル)
 # 3: 3次メッシュ (約1km四方)
 # 4: 4次メッシュ (約500m四方)
 # 5: 5次メッシュ (約250m四方)
 # 6: 6次メッシュ (約125m四方)
-MESH_LEVEL = 5
+MESH_LEVEL = args.mesh_level
 
 # =========================================================
 # 【メイン処理ロジック】
