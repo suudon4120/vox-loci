@@ -3,6 +3,8 @@ import json
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import argparse
+import sys
 
 # ==========================================
 # ⚙️ 設定
@@ -12,7 +14,18 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 BATCH_ID = input("Batch IDを入力: ") 
 
-INPUT_FILE = "KYOTO2.txt"
+parser = argparse.ArgumentParser(description="Batch APIによる処理の結果を元データと結合するプログラム")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+args = parser.parse_args
+if args.input:
+    INPUT_FILE = args.input
+    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
+else:
+    print("入力ファイルが指定されていません。")
+    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
+if not INPUT_FILE:
+    print("ファイル名が入力されませんでした。終了します。")
+    sys.exit()
 root, ext = os.path.splitext(INPUT_FILE)
 FINAL_OUTPUT_CSV = f"{root}_batch_tagged.csv"
 

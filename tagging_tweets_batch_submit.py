@@ -2,6 +2,8 @@ import json
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
+import argparse
+import sys
 
 # ==========================================
 # ⚙️ 設定
@@ -12,10 +14,25 @@ if not API_KEY:
     raise ValueError("❌️ エラー: APIキーが見つかりません。")
 client = OpenAI(api_key=API_KEY)
 
-INPUT_FILE = "KYOTO2.txt"
+parser = argparse.ArgumentParser(description="ツイートを読み込んでタグ付けのリクエストを行うプログラム")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+parser.add_argument("--chunk_size", type=int, default=10, help="1回のリクエストで処理する件数 (デフォルト: 10)")
+parser.add_argument("--model", type=str, default="gpt-5-mini", help="使用するモデル名 (デフォルト: gpt-5-mini)")
+args = parser.parse_args()
+
+if args.input:
+    INPUT_FILE = args.input
+    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
+else:
+    print("入力ファイルが指定されていません。")
+    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
+if not INPUT_FILE:
+    print("ファイル名が入力されませんでした。終了します。")
+    sys.exit()
+
+CHUNK_SIZE = args.chunk_size
+MODEL_NAME = args.model
 BATCH_REQUEST_FILE = "batch_input.jsonl"
-MODEL_NAME = "gpt-5-mini"
-CHUNK_SIZE = 1000
 
 
 # ==========================================
@@ -85,6 +102,9 @@ RESPONSE_SCHEMA = {
 def main():
     print("🚀 データを読み込み中...")
     
+    if not os.path.exists(INPUT_FILE):
+        print(f"エラー: ファイル '{INPUT_FILE}' が見つかりません。")
+        sys.exit()
     with open(INPUT_FILE, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     
@@ -147,6 +167,7 @@ def main():
     print(f"Batch ID: {batch_job.id}")
     print("--------------------------------------------------")
     print("このIDを控えておいてください。受信スクリプトで使います。")
+
 
 if __name__ == "__main__":
     main()
