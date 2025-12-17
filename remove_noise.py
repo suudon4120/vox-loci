@@ -34,18 +34,33 @@ EXCLUDE_PATTERNS = [
     "ノイズ(クーポン情報)",
     "ノイズ(単体場所情報)",
     "ノイズ(広告・宣伝)",
-    "ノイズ(客観的記述)"
+    "ノイズ(客観的記述)",
+    "noise",
+    "ノイス",
+    "ノイズ",
+    "ノイズ/広告",
+    "ニュース",
+    "ニュートラル"
+]
+
+# ここに "住民", "観光客", "それ以外" などを記述すると、その属性の行が除去されます。
+# 除外したくないものはコメントアウト（行頭に #）するか、リストから削除してください。
+EXCLUDE_USER_ATTRIBUTES = [
+    "それ以外",
+    # "住民",
+    "観光客",
 ]
 
 # フィルタリングを行うカラム名
 TARGET_COLUMN = 'sentiment_or_noise'
 LOCATION_COLUMN = 'is_location_related'
+USER_ATTRIBUTE_COLUMN = 'user_attribute'
 
 # =========================================================
 # 【処理ロジックエリア】
 # =========================================================
 
-def filter_data_by_column(input_path, output_path, process_type, target_col, exclude_values, location_col):
+def filter_data_by_column(input_path, output_path, process_type, target_col, exclude_values, location_col, user_attr_col, exclude_user_attrs):
     """
     Pandasを使用してデータを読み込み、指定されたカラムの値に基づいて行を除外する関数
     """
@@ -87,6 +102,13 @@ def filter_data_by_column(input_path, output_path, process_type, target_col, exc
         mask_to_exclude |= df[target_col].isna()
         print("✅ NaN (欠損値) を除外対象に追加しました。")
 
+        # 4. user_attribute による除外 (今回追加)
+        if user_attr_col in df.columns:
+            mask_to_exclude |= df[user_attr_col].isin(exclude_user_attrs)
+            print(f"✅ ユーザー属性 ({exclude_user_attrs}) による除外対象を追加しました。")
+        else:
+            print(f"⚠️ 注意: '{user_attr_col}' カラムが存在しないため、属性フィルタはスキップされました。")
+
         # フィルタリング処理
         # その結果を ~ で反転させ、False（残したい行）だけを選択
         df_cleaned = df[~mask_to_exclude]
@@ -116,5 +138,7 @@ if __name__ == "__main__":
         process_type=PROCESS_TYPE,
         target_col=TARGET_COLUMN, 
         exclude_values=EXCLUDE_PATTERNS,
-        location_col=LOCATION_COLUMN
+        location_col=LOCATION_COLUMN,
+        user_attr_col=USER_ATTRIBUTE_COLUMN,       # 追加引数
+        exclude_user_attrs=EXCLUDE_USER_ATTRIBUTES # 追加引数
     )
