@@ -5,3 +5,5 @@
 *.html
 *.xlsx
 .env
+*.jsonl
+related_papers/
