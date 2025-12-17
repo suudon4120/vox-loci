@@ -1,8 +1,22 @@
 import pandas as pd
 import folium
 import os
+import argparse
+import sys
 
-INPUT_FILE = 'KYOTO2_10220_tagged_cleaned_mesh.csv'
+parser = argparse.ArgumentParser(description="ツイートを地図上にプロットするプログラム")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+args = parser.parse_args()
+
+if args.input:
+    INPUT_FILE = args.input
+    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
+else:
+    print("入力ファイルが指定されていません。")
+    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
+if not INPUT_FILE:
+    print("ファイル名が入力されませんでした。終了します。")
+    sys.exit()
 root, ext = os.path.splitext(INPUT_FILE)
 OUPUT_FILE = f'{root}_map.html'
 
