@@ -6,7 +6,7 @@ import time
 # VOICEVOX EngineのURL (デフォルト)
 BASE_URL = "http://localhost:50021"
 
-def speak_text(text, speaker_id=11):
+def speak_text(text, speaker_id=42):
     """
     テキストをVOICEVOXで音声化して再生する関数
     
