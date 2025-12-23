@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+import jismesh.utils as ju
 import search_mesh  # 既存の検索モジュール
 import voicevox_utils  # 音声合成モジュール
 
@@ -34,6 +35,44 @@ def load_summary_data():
         print(f"[Error] CSV読み込みエラー: {e}")
     
     return summary_dict
+
+def search_nearby_with_data(lat, lon, summary_data):
+    """
+    指定座標のメッシュにデータがなければ、周囲8方向(3x3)を探索する関数
+    
+    Returns:
+        tuple: (mesh_code, found_type)
+        found_type -> "direct" (中心で発見), "neighbor" (隣で発見), "none" (なし)
+    """
+    # 1. まず中心をチェック
+    center_code = str(ju.to_meshcode(lat, lon, level=5)).strip()
+    if center_code in summary_data:
+        return center_code, "direct"
+    
+    # 2. 周囲8方向を探索
+    # 5次メッシュ(250m)の刻み幅
+    # 緯度: 7.5秒 = 7.5/3600 度
+    # 経度: 11.25秒 = 11.25/3600 度
+    lat_step = 7.5 / 3600
+    lon_step = 11.25 / 3600
+    
+    # 探索順序（ランダム性を持たせても面白いが、今回は左上から走査）
+    # (-1, -1) ... (1, 1)
+    offsets = [
+        (-1, 0), (1, 0), (0, -1), (0, 1), # 上下左右を優先
+        (-1, -1), (-1, 1), (1, -1), (1, 1) # 斜めは後回し
+    ]
+    
+    for dy, dx in offsets:
+        neighbor_lat = lat + (dy * lat_step)
+        neighbor_lon = lon + (dx * lon_step)
+        neighbor_code = str(ju.to_meshcode(neighbor_lat, neighbor_lon, level=5)).strip()
+        
+        if neighbor_code in summary_data:
+            return neighbor_code, "neighbor"
+            
+    # 3. それでもなければ中心のコードを返す（生成用）
+    return center_code, "none"
 
 def main():
     print("========================================")
@@ -71,25 +110,39 @@ def main():
             
             mesh_code = str(result['mesh_code']).strip()
             address = result['address']
+            target_lat = result['lat']
+            target_lon = result['lon']
+
+            mesh_code, found_type = search_nearby_with_data(target_lat, target_lon, summary_data)
         
         # ------------------------------------------
         # 共通処理: 結果表示と読み上げ
         # ------------------------------------------
         print(f"📍 特定: {address}")
-        print(f"🔢 メッシュコード: {mesh_code}")
         
-        # 3. 既存の要約があるか確認
+        if found_type == "neighbor":
+            print(f"⚠️ 指定地点にはデータがありませんでしたが...")
+            print(f"✅ すぐ近くのメッシュ ({mesh_code}) にデータが見つかりました！")
+            
+        print(f"🔢 ターゲットメッシュ: {mesh_code}")
+        
         if mesh_code in summary_data:
             summary_text = summary_data[mesh_code]
             
-            print(f"\n🗣️ 【お地蔵さん】\n「{summary_text}」")
-            
-            # 4. 読み上げ
-            voicevox_utils.speak_text(summary_text, speaker_id=11)
+            # 周辺データだった場合、前置きを入れると親切
+            prefix = ""
+            if found_type == "neighbor":
+                prefix = "その場所のことは詳しくないんじゃが、すぐ近くのことなら知っておるぞ。"
+                print(f"🗣️ 【お地蔵さん】\n「{prefix}」")
+                print(f"「{summary_text}」")
+                voicevox_utils.speak_text(prefix + summary_text, speaker_id=11)
+            else:
+                print(f"\n🗣️ 【お地蔵さん】\n「{summary_text}」")
+                voicevox_utils.speak_text(summary_text, speaker_id=11)
             
         else:
-            print("\n❌ この場所の要約データはまだありません。")
-            # voicevox_utils.speak_text("そこには何もないようじゃ...", speaker_id=11)
+            print("\n❌ 周辺を含めても、まだ要約データはありません。")
+            # voicevox_utils.speak_text("この辺りには何もないようじゃ...", speaker_id=11)
 
 if __name__ == "__main__":
     main()
