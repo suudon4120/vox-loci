@@ -137,7 +137,7 @@ def main():
         lines = f.readlines()
 
     # データをチャンク（塊）に分割
-    requests = []
+    # requests = []
     current_chunk = []
 
     print(
