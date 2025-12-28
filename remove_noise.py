@@ -13,13 +13,28 @@ PROCESS_TYPE = 'csv'
 # 入力ファイル名
 parser = argparse.ArgumentParser(description="特定のタグを含む行を除去するプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-args = parser.parse_args()
-if args.input:
-    INPUT_PATH = args.input
-    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
-else:
-    print("入力ファイルが指定されていません。")
-    INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+# args = parser.parse_args()
+# 以下の行をコメントアウト（または削除）
+# args = parser.parse_args()
+
+# 代わりに、テスト実行時でもエラーにならないよう空のオブジェクトを作成
+class DummyArgs:
+    input = None
+args = DummyArgs()
+# if args.input:
+#     INPUT_PATH = args.input
+#     print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
+# else:
+#     print("入力ファイルが指定されていません。")
+#     INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+# --- 修正前（ここをコメントアウトまたは削除） ---
+# if args.input:
+#     INPUT_PATH = args.input
+# else:
+#     INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+
+# --- 修正後（ここを追加） ---
+INPUT_PATH = "dummy.csv"  # テスト時は固定値にする
 if not INPUT_PATH:
     print("ファイル名が入力されませんでした。終了します。")
     sys.exit()
@@ -130,15 +145,38 @@ def filter_data_by_column(input_path, output_path, process_type, target_col, exc
     except Exception as e:
         print(f"予期せぬエラーが発生しました: {e}")
 
-if __name__ == "__main__":
-    # 設定値を使って関数を実行
+def main():
+    """コマンドライン引数の処理と実行をここにまとめる"""
+    parser = argparse.ArgumentParser(description="特定のタグを含む行を除去するプログラム")
+    parser.add_argument("--input", type=str, help="処理対象のファイルパス")
+    args = parser.parse_args()
+
+    if args.input:
+        input_path = args.input
+        print(f"コマンドライン引数からファイル名を受け取りました: {input_path}")
+    else:
+        print("入力ファイルが指定されていません。")
+        input_path = input(">>処理するファイル名を入力してください: ").strip()
+
+    if not input_path:
+        print("ファイル名が入力されませんでした。終了します。")
+        sys.exit()
+
+    # 出力ファイル名の生成
+    root, ext = os.path.splitext(input_path)
+    output_path = f"{root}_cleaned.csv"
+
+    # 関数の実行
     filter_data_by_column(
-        input_path=INPUT_PATH, 
-        output_path=OUTPUT_PATH, 
+        input_path=input_path, 
+        output_path=output_path, 
         process_type=PROCESS_TYPE,
         target_col=TARGET_COLUMN, 
         exclude_values=EXCLUDE_PATTERNS,
         location_col=LOCATION_COLUMN,
-        user_attr_col=USER_ATTRIBUTE_COLUMN,       # 追加引数
-        exclude_user_attrs=EXCLUDE_USER_ATTRIBUTES # 追加引数
+        user_attr_col=USER_ATTRIBUTE_COLUMN,
+        exclude_user_attrs=EXCLUDE_USER_ATTRIBUTES
     )
+
+if __name__ == "__main__":
+    main()

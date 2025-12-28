@@ -1,0 +1,38 @@
+name: Measure Coverage
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov pandas
+          
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v --cov=. --cov-report=term-missing --cov-report=html
+
+      - name: Upload coverage HTML report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ matrix.python-version }}
+          path: htmlcov/
+
+      - name: Coverage summary
+        if: matrix.python-version == '3.9'
+        run: |
+          echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+          pytest tests/ --cov=. --cov-report=term | grep -E "(TOTAL|Name)" | tail -n 2 >> $GITHUB_STEP_SUMMARY
