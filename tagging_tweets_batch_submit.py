@@ -14,10 +14,22 @@ if not API_KEY:
     raise ValueError("❌️ エラー: APIキーが見つかりません。")
 client = OpenAI(api_key=API_KEY)
 
-parser = argparse.ArgumentParser(description="ツイートを読み込んでタグ付けのリクエストを行うプログラム")
+parser = argparse.ArgumentParser(
+    description="ツイートを読み込んでタグ付けのリクエストを行うプログラム"
+)
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-parser.add_argument("--chunk_size", type=int, default=10, help="1回のリクエストで処理する件数 (デフォルト: 10)")
-parser.add_argument("--model", type=str, default="gpt-5-mini", help="使用するモデル名 (デフォルト: gpt-5-mini)")
+parser.add_argument(
+    "--chunk_size",
+    type=int,
+    default=10,
+    help="1回のリクエストで処理する件数 (デフォルト: 10)",
+)
+parser.add_argument(
+    "--model",
+    type=str,
+    default="gpt-5-mini",
+    help="使用するモデル名 (デフォルト: gpt-5-mini)",
+)
 args = parser.parse_args()
 
 if args.input:
@@ -81,54 +93,74 @@ RESPONSE_SCHEMA = {
                     "items": {
                         "type": "object",
                         "properties": {
-                            "id": {"type": "integer", "description": "入力されたIDをそのまま返す"},
+                            "id": {
+                                "type": "integer",
+                                "description": "入力されたIDをそのまま返す",
+                            },
                             "is_location_related": {"type": "boolean"},
-                            "subjectivity": {"type": "string", "enum": ["主観", "客観", "N/A"]},
+                            "subjectivity": {
+                                "type": "string",
+                                "enum": ["主観", "客観", "N/A"],
+                            },
                             "sentiment_or_noise": {"type": "string"},
-                            "user_attribute": {"type": "string", "enum": ["住民", "観光客", "それ以外", "N/A"]}
+                            "user_attribute": {
+                                "type": "string",
+                                "enum": ["住民", "観光客", "それ以外", "N/A"],
+                            },
                         },
-                        "required": ["id", "is_location_related", "subjectivity", "sentiment_or_noise", "user_attribute"],
-                        "additionalProperties": False
-                    }
+                        "required": [
+                            "id",
+                            "is_location_related",
+                            "subjectivity",
+                            "sentiment_or_noise",
+                            "user_attribute",
+                        ],
+                        "additionalProperties": False,
+                    },
                 }
             },
             "required": ["results"],
-            "additionalProperties": False
+            "additionalProperties": False,
         },
-        "strict": True
-    }
+        "strict": True,
+    },
 }
+
 
 def main():
     print("🚀 データを読み込み中...")
-    
+
     if not os.path.exists(INPUT_FILE):
         print(f"エラー: ファイル '{INPUT_FILE}' が見つかりません。")
         sys.exit()
-    with open(INPUT_FILE, 'r', encoding='utf-8') as f:
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
         lines = f.readlines()
-    
+
     # データをチャンク（塊）に分割
     requests = []
     current_chunk = []
-    
-    print(f"📦 全 {len(lines)} 行を {CHUNK_SIZE} 件ずつのバッチリクエストに変換します...")
 
-    with open(BATCH_REQUEST_FILE, 'w', encoding='utf-8') as jsonl_f:
+    print(
+        f"📦 全 {len(lines)} 行を {CHUNK_SIZE} 件ずつのバッチリクエストに変換します..."
+    )
+
+    with open(BATCH_REQUEST_FILE, "w", encoding="utf-8") as jsonl_f:
         for i, line in enumerate(lines):
             line = line.strip()
-            if not line: continue
-            
+            if not line:
+                continue
+
             # IDとテキストのペアを作成
             current_chunk.append(f"ID:{i} Text:{line}")
-            
+
             # チャンクサイズに達したら1つのリクエストとして書き出し
             if len(current_chunk) >= CHUNK_SIZE or i == len(lines) - 1:
-                if not current_chunk: continue
-                
+                if not current_chunk:
+                    continue
+
                 # プロンプト作成（複数のツイートを改行で結合）
                 user_content = "\n".join(current_chunk)
-                
+
                 # APIリクエスト構造の作成
                 # custom_id は後で紐付けに使えます（ここでは開始行番号を使用）
                 start_id = i - len(current_chunk) + 1
@@ -140,19 +172,18 @@ def main():
                         "model": MODEL_NAME,
                         "messages": [
                             {"role": "system", "content": SYSTEM_PROMPT},
-                            {"role": "user", "content": user_content}
+                            {"role": "user", "content": user_content},
                         ],
-                        "response_format": RESPONSE_SCHEMA
-                    }
+                        "response_format": RESPONSE_SCHEMA,
+                    },
                 }
-                
+
                 jsonl_f.write(json.dumps(request_obj, ensure_ascii=False) + "\n")
                 current_chunk = []
 
     print("📤 ファイルをOpenAIにアップロード中...")
     batch_file = client.files.create(
-        file=open(BATCH_REQUEST_FILE, "rb"),
-        purpose="batch"
+        file=open(BATCH_REQUEST_FILE, "rb"), purpose="batch"
     )
 
     print(f"🚀 Batch処理を開始します (File ID: {batch_file.id})...")
@@ -160,10 +191,10 @@ def main():
         input_file_id=batch_file.id,
         endpoint="/v1/chat/completions",
         completion_window="24h",
-        metadata={"description": "tweet_analysis_v1"}
+        metadata={"description": "tweet_analysis_v1"},
     )
 
-    print(f"\n✅ 送信完了！")
+    print("\n✅ 送信完了！")
     print(f"Batch ID: {batch_job.id}")
     print("--------------------------------------------------")
     print("このIDを控えておいてください。受信スクリプトで使います。")

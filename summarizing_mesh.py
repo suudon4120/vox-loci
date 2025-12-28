@@ -1,10 +1,10 @@
 import pandas as pd
 
 # データの読み込み
-df = pd.read_csv('KYOTO2_batch_merged_tagged_cleaned_mesh.csv')
+df = pd.read_csv("KYOTO2_batch_merged_tagged_cleaned_mesh.csv")
 
 # メッシュコードごとにグループ化して件数を取得
-mesh_counts = df.groupby('mesh_code').size().reset_index(name='tweet_count')
+mesh_counts = df.groupby("mesh_code").size().reset_index(name="tweet_count")
 
 # --- 統計量の算出 ---
 # 全ツイート数
@@ -12,14 +12,14 @@ total_tweets = len(df)
 # 全メッシュ数
 total_meshes = len(mesh_counts)
 # 各種統計量
-max_val = mesh_counts['tweet_count'].max()
-min_val = mesh_counts['tweet_count'].min()
-mean_val = mesh_counts['tweet_count'].mean()
-std_val = mesh_counts['tweet_count'].std()
-median_val = mesh_counts['tweet_count'].median()
+max_val = mesh_counts["tweet_count"].max()
+min_val = mesh_counts["tweet_count"].min()
+mean_val = mesh_counts["tweet_count"].mean()
+std_val = mesh_counts["tweet_count"].std()
+median_val = mesh_counts["tweet_count"].median()
 
 # 上位5メッシュの取得
-top_5_meshes = mesh_counts.sort_values(by='tweet_count', ascending=False).head(5)
+top_5_meshes = mesh_counts.sort_values(by="tweet_count", ascending=False).head(5)
 
 # --- 結果の出力 ---
 print(f"全ツイート数: {total_tweets}")
