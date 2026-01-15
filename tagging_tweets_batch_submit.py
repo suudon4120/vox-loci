@@ -16,8 +16,8 @@ client = OpenAI(api_key=API_KEY)
 
 parser = argparse.ArgumentParser(description="ツイートを読み込んでタグ付けのリクエストを行うプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-parser.add_argument("--chunk_size", type=int, default=10, help="1回のリクエストで処理する件数 (デフォルト: 10)")
-parser.add_argument("--model", type=str, default="gpt-5-mini", help="使用するモデル名 (デフォルト: gpt-5-mini)")
+parser.add_argument("--chunk_size", type=int, default=50, help="1回のリクエストで処理する件数 (デフォルト: 50)")
+parser.add_argument("--model", type=str, default="gpt-5-nano", help="使用するモデル名 (デフォルト: gpt-5-nano)")
 args = parser.parse_args()
 
 if args.input:
@@ -52,10 +52,7 @@ SYSTEM_PROMPT = """
        - N/A: 場所関連情報がFalseの場合。
 
     3. sentiment_or_noise (ポジティブ/ネガティブ/ノイズ):
-       - ノイズ(クーポン情報): 「クーポン」「割引」などの機械的な広告。
-       - ノイズ(単体場所情報): 「I'm at ～」「～なう」「〜イマココ」などのみで文脈がないもの。
-       - ノイズ(広告・宣伝): 求人やイベント告知など。
-       - ノイズ(客観的記述): 移動報告や事実の伝達のみで感情が含まれないもの。
+       - ノイズ: クーポンや求人、イベント告知などの機械的な広告。「I'm at ～」「～なう」「〜イマココ」などのみで文脈がないもの。移動報告や事実の伝達のみで感情が含まれないもの。
        - ポジティブ: 主観的な内容が肯定的、好意的なもの。
        - ネガティブ: 主観的な内容が否定的、不満、不快なもの。
        - N/A: 場所関連情報がFalseの場合。
@@ -68,7 +65,6 @@ SYSTEM_PROMPT = """
     """
 
 # 出力フォーマット (JSON Schema)
-# Pydanticを使わず直接スキーマを書くことで、ライブラリ依存を減らして軽量化しています
 RESPONSE_SCHEMA = {
     "type": "json_schema",
     "json_schema": {
@@ -84,7 +80,7 @@ RESPONSE_SCHEMA = {
                             "id": {"type": "integer", "description": "入力されたIDをそのまま返す"},
                             "is_location_related": {"type": "boolean"},
                             "subjectivity": {"type": "string", "enum": ["主観", "客観", "N/A"]},
-                            "sentiment_or_noise": {"type": "string"},
+                            "sentiment_or_noise": {"type": "string", "enum": ["ポジティブ", "ネガティブ", "ノイズ", "N/A"]},
                             "user_attribute": {"type": "string", "enum": ["住民", "観光客", "それ以外", "N/A"]}
                         },
                         "required": ["id", "is_location_related", "subjectivity", "sentiment_or_noise", "user_attribute"],
@@ -119,8 +115,12 @@ def main():
             line = line.strip()
             if not line: continue
             
-            # IDとテキストのペアを作成
-            current_chunk.append(f"ID:{i} Text:{line}")
+            parts = line.split('\t')
+            # 5列目(インデックス4)がある場合はそれを採用、なければ行全体
+            text_content = parts[4] if len(parts) >= 5 else line
+            
+            # IDと抽出したテキストのペアを作成
+            current_chunk.append(f"ID:{i} Text:{text_content}")
             
             # チャンクサイズに達したら1つのリクエストとして書き出し
             if len(current_chunk) >= CHUNK_SIZE or i == len(lines) - 1:
@@ -160,7 +160,7 @@ def main():
         input_file_id=batch_file.id,
         endpoint="/v1/chat/completions",
         completion_window="24h",
-        metadata={"description": "tweet_analysis_v1"}
+        metadata={"description": "tweet_analysis_v1_textonly"}
     )
 
     print(f"\n✅ 送信完了！")
