@@ -16,7 +16,7 @@ BATCH_ID = input("Batch IDを入力: ")
 
 parser = argparse.ArgumentParser(description="Batch APIによる処理の結果を元データと結合するプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-args = parser.parse_args
+args = parser.parse_args()
 if args.input:
     INPUT_FILE = args.input
     print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
