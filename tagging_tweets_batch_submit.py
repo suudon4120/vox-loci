@@ -123,14 +123,11 @@ def main():
             current_chunk.append(f"ID:{i} Text:{text_content}")
             
             # チャンクサイズに達したら1つのリクエストとして書き出し
-            if len(current_chunk) >= CHUNK_SIZE or i == len(lines) - 1:
-                if not current_chunk: continue
-                
+            if len(current_chunk) >= CHUNK_SIZE:
                 # プロンプト作成（複数のツイートを改行で結合）
                 user_content = "\n".join(current_chunk)
                 
                 # APIリクエスト構造の作成
-                # custom_id は後で紐付けに使えます（ここでは開始行番号を使用）
                 start_id = i - len(current_chunk) + 1
                 request_obj = {
                     "custom_id": f"batch_start_{start_id}",
@@ -148,6 +145,26 @@ def main():
                 
                 jsonl_f.write(json.dumps(request_obj, ensure_ascii=False) + "\n")
                 current_chunk = []
+
+        # 末尾にチャンクサイズに満たないツイートリストがあれば書き出し
+        if current_chunk:
+            user_content = "\n".join(current_chunk)
+            start_id = i - len(current_chunk) + 1
+            request_obj = {
+                "custom_id": f"batch_start_{start_id}",
+                "method": "POST",
+                "url": "/v1/chat/completions",
+                "body": {
+                    "model": MODEL_NAME,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content}
+                    ],
+                    "response_format": RESPONSE_SCHEMA
+                }
+            }
+            
+            jsonl_f.write(json.dumps(request_obj, ensure_ascii=False) + "\n")
 
     print("📤 ファイルをOpenAIにアップロード中...")
     batch_file = client.files.create(
