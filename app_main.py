@@ -168,7 +168,7 @@ def main():
 
                 # LLM呼び出し
                 tweet_info = raw_data[mesh_code]
-                generated_text = llm_utils.generate_summary(tweet_info['text'])
+                generated_text = llm_utils.generate_summary(tweet_info['text'], mesh_code)
 
                 # メモリ更新 & ファイル保存
                 summary_data[mesh_code] = generated_text
