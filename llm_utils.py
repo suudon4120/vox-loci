@@ -1,5 +1,6 @@
 from openai import OpenAI
 import os
+import sys
 from dotenv import load_dotenv
 
 # APIキーの設定
@@ -60,7 +61,46 @@ def generate_summary(tweet_text, mesh_code=None):
         print(f"[Error] LLM生成エラー: {e}")
         return f"すまんのう、ちと耳が遠くなったみたいじゃ（APIエラー）。\n{e}"
 
+# === メイン処理（テストモード） ===
 if __name__ == "__main__":
-    # テスト用
-    sample_tweets = "京都駅の階段めっちゃ長い。抹茶パフェ美味しい。人が多すぎて疲れた。"
-    print(generate_summary(sample_tweets))
+    input_filename = "input_tweets.txt"
+    print(f"=== テストモード起動 ({input_filename}) ===")
+
+    if not os.path.exists(input_filename):
+        print(f"❌ エラー: 入力ファイル '{input_filename}' が見つかりません。")
+        sys.exit(1)
+
+    try:
+        with open(input_filename, "r", encoding="utf-8") as f:
+            # ファイル全体を読み込む
+            full_content = f.read().strip()
+        
+        if not full_content:
+            print(f"⚠️ 警告: '{input_filename}' の中身が空です。")
+            sys.exit(0)
+
+        # 改行で分割
+        # parts[0] = 1行目(メッシュコード), parts[1] = 残りのすべて(ツイート)
+        parts = full_content.split('\n', 1)
+
+        if len(parts) == 2:
+            mesh_code_input = parts[0].strip()
+            tweet_text_input = parts[1].strip()
+        else:
+            # 1行しかない場合は、メッシュコードなし（または仮）として扱う
+            mesh_code_input = "Unknown_Mesh"
+            tweet_text_input = parts[0].strip()
+
+        print(f"📍 メッシュコード: {mesh_code_input}")
+        print(f"📄 ツイート文字数: {len(tweet_text_input)} 文字")
+        print("⏳ お地蔵さんが考え中...")
+        print("-" * 40)
+        
+        # 読み取ったメッシュコードとテキストを渡す
+        result = generate_summary(tweet_text_input, mesh_code=mesh_code_input)
+        print(result)
+        
+        print("-" * 40)
+
+    except Exception as e:
+        print(f"❌ ファイル読み込みエラー: {e}")
