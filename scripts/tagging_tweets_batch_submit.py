@@ -19,20 +19,21 @@ parser.add_argument("--input", type=str, help="処理対象のファイルパス
 parser.add_argument("--chunk_size", type=int, default=50, help="1回のリクエストで処理する件数 (デフォルト: 50)")
 parser.add_argument("--model", type=str, default="gpt-5-nano", help="使用するモデル名 (デフォルト: gpt-5-nano)")
 args = parser.parse_args()
-
+# 入力ファイル
 if args.input:
-    INPUT_FILE = args.input
-    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
+    INPUT_PATH = args.input
+    print(f"コマンドライン引数からファイルパスを受け取りました: {INPUT_PATH}")
 else:
     print("入力ファイルが指定されていません。")
-    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
-if not INPUT_FILE:
+    INPUT_PATH = input(">>処理するファイルパスを入力してください: ").strip()
+if not INPUT_PATH:
     print("ファイル名が入力されませんでした。終了します。")
     sys.exit()
-
+INPUT_PATH = os.path.abspath(INPUT_PATH)
 CHUNK_SIZE = args.chunk_size
 MODEL_NAME = args.model
-BATCH_REQUEST_FILE = "batch_input.jsonl"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BATCH_REQUEST_FILE = os.path.join(BASE_DIR, "data", "interim", "batch_input.jsonl")
 
 
 # ==========================================
@@ -98,10 +99,10 @@ RESPONSE_SCHEMA = {
 def main():
     print("🚀 データを読み込み中...")
     
-    if not os.path.exists(INPUT_FILE):
-        print(f"エラー: ファイル '{INPUT_FILE}' が見つかりません。")
+    if not os.path.exists(INPUT_PATH):
+        print(f"エラー: ファイル '{INPUT_PATH}' が見つかりません。")
         sys.exit()
-    with open(INPUT_FILE, 'r', encoding='utf-8') as f:
+    with open(INPUT_PATH, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     
     # データをチャンク（塊）に分割

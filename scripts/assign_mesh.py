@@ -12,22 +12,29 @@ parser.add_argument("--input", type=str, help="処理対象のファイルパス
 parser.add_argument("--mesh_level", type=int, default=5, help="メッシュの細かさ (デフォルト: 5次メッシュ(約250m四方))")
 args = parser.parse_args()
 
+# 入力ファイル
 if args.input:
     INPUT_PATH = args.input
-    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
+    print(f"コマンドライン引数からファイルパスを受け取りました: {INPUT_PATH}")
 else:
     print("入力ファイルが指定されていません。")
-    INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+    INPUT_PATH = input(">>処理するファイルパスを入力してください: ").strip()
 if not INPUT_PATH:
-    print("ファイル名が入力されませんでした。終了します。")
+    print("ファイルパスが入力されませんでした。終了します。")
     sys.exit()
-root, ext = os.path.splitext(INPUT_PATH)
+INPUT_PATH = os.path.abspath(INPUT_PATH)
+input_filename = os.path.basename(INPUT_PATH)
+root, ext = os.path.splitext(input_filename)
+# 出力ファイル
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "interim", f"{root}_mesh.csv")
+
+MESH_LEVEL = args.mesh_level
 # メッシュの細かさ (レベル)
 # 3: 3次メッシュ (約1km四方)
 # 4: 4次メッシュ (約500m四方)
 # 5: 5次メッシュ (約250m四方)
 # 6: 6次メッシュ (約125m四方)
-MESH_LEVEL = args.mesh_level
 
 # =========================================================
 # 【メイン処理ロジック】
@@ -88,6 +95,5 @@ if not df_final.empty:
     preview_cols = [c for c in ['mesh_code', 'lat', 'lon', 'text'] if c in df_final.columns]
     print(df_final[preview_cols].head().to_string(index=False))
 
-    OUTPUT_FILE = f'{root}_mesh.csv'
-    df_final.to_csv(OUTPUT_FILE, index=False, encoding='utf-8-sig')
-    print(f"\n✅ 完了: '{OUTPUT_FILE}' に保存しました。")
+    df_final.to_csv(OUTPUT_PATH, index=False, encoding='utf-8-sig')
+    print(f"\n✅ 完了: '{OUTPUT_PATH}' に保存しました。")

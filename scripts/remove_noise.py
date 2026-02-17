@@ -10,23 +10,25 @@ import sys
 # 処理タイプを設定: 'csv' または 'txt' を入力
 PROCESS_TYPE = 'csv'
 
-# 入力ファイル名
 parser = argparse.ArgumentParser(description="特定のタグを含む行を除去するプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
 args = parser.parse_args()
+# 入力ファイル
 if args.input:
     INPUT_PATH = args.input
-    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_PATH}")
+    print(f"コマンドライン引数からファイルパスを受け取りました: {INPUT_PATH}")
 else:
     print("入力ファイルが指定されていません。")
-    INPUT_PATH = input(">>処理するファイル名を入力してください: ").strip()
+    INPUT_PATH = input(">>処理するファイルパスを入力してください: ").strip()
 if not INPUT_PATH:
-    print("ファイル名が入力されませんでした。終了します。")
+    print("ファイルパスが入力されませんでした。終了します。")
     sys.exit()
-
-# 出力ファイル名
-root, ext = os.path.splitext(INPUT_PATH)
-OUTPUT_PATH = f"{root}_cleaned.csv"
+INPUT_PATH = os.path.abspath(INPUT_PATH)
+# 出力ファイル
+input_filename = os.path.basename(INPUT_PATH)
+root, ext = os.path.splitext(input_filename)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "interim", f"{root}_cleaned.csv")
 
 # 除外したい行末パターンのリスト
 # ※ ここに条件を追加すれば、ロジックを変更せずに除外対象を増やせます
@@ -37,9 +39,9 @@ EXCLUDE_PATTERNS = [
 # ここに "住民", "観光客", "それ以外" などを記述すると、その属性の行が除去されます。
 # 除外したくないものはコメントアウト（行頭に #）するか、リストから削除してください。
 EXCLUDE_USER_ATTRIBUTES = [
-    # "それ以外",
+    "それ以外",
     # "住民",
-    # "観光客",
+    "観光客",
 ]
 
 # フィルタリングを行うカラム名

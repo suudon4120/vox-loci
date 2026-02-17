@@ -8,8 +8,9 @@ import voicevox_utils  # 音声合成モジュール
 import llm_utils       # 生成モジュール
 
 # データファイルのパス設定
-SUMMARY_DB_PATH = "mesh_summary_database.csv"
-RAW_DATA_PATH = "mesh_tweets_integrated.csv"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SUMMARY_DB_PATH = os.path.join(BASE_DIR, "data", "processed", "mesh_summary_database.csv")
+RAW_DATA_PATH   = os.path.join(BASE_DIR, "data", "processed", "mesh_tweets_integrated.csv")
 
 def load_summary_data():
     # 要約済みデータ(キャッシュ)を読み込む

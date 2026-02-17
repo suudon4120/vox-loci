@@ -24,21 +24,21 @@ from app_cli import (
     RAW_DATA_PATH
 )
 
-app = Flask(__name__)
+# 保存用ディレクトリ
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATIC_DIR = os.path.join(BASE_DIR, 'data', 'audio')
+os.makedirs(STATIC_DIR, exist_ok=True)
 
 # --- 設定  ---
-load_dotenv()
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 NGROK_DOMAIN = os.getenv('NGROK_DOMAIN')
 NGROK_URL = f"https://{NGROK_DOMAIN}"
 
+app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/static')
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
-
-# 保存用ディレクトリ
-STATIC_DIR = 'static'
-os.makedirs(STATIC_DIR, exist_ok=True)
 
 # データのロード（起動時に一度だけ実行）
 print("データをロード中...")
@@ -178,9 +178,9 @@ def callback():
         abort(400)
     return 'OK'
 
-@app.route('/static/<path:filename>')
-def send_static(filename):
-    return send_from_directory(STATIC_DIR, filename)
+# @app.route('/static/<path:filename>')
+# def send_static(filename):
+#     return send_from_directory(STATIC_DIR, filename)
 
 @handler.add(MessageEvent, message=(TextMessage, LocationMessage))
 def handle_message(event):

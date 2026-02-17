@@ -6,27 +6,31 @@ import os
 # ==========================================
 # ⚙️ 設定
 # ==========================================
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_OUTPUT = os.path.join(BASE_DIR, "data", "processed", "mesh_tweets_integrated.csv")
 parser = argparse.ArgumentParser(description="メッシュごとにツイートを集計し、既存の集計ファイルに統合するプログラム")
-parser.add_argument("--input", type=str, help="処理対象のファイルパス")
-parser.add_argument("--output", type=str, default="mesh_tweets_integrated.csv", help="出力/統合先のファイルパス (デフォルト: mesh_tweets_integrated.csv)")
+parser.add_argument("--input", type=str, help="処理対象のファイルパス (例: data/interim/xxx.csv)")
+parser.add_argument("--output", type=str, default=DEFAULT_OUTPUT, help="出力/統合先のファイルパス")
 args = parser.parse_args()
 
-# 入力ファイルの取得
+# 入力ファイル
 if args.input:
-    INPUT_FILE = args.input
+    INPUT_PATH = args.input
 else:
-    INPUT_FILE = input(">>処理する新規ファイル名を入力してください: ").strip()
-
-if not os.path.exists(INPUT_FILE):
-    print(f"❌ 入力ファイル '{INPUT_FILE}' が見つかりません。")
+    INPUT_PATH = input(">>処理対象のファイルパスを入力してください: ").strip()
+if not os.path.exists(INPUT_PATH):
+    print(f"❌ 入力ファイル '{INPUT_PATH}' が見つかりません。")
     sys.exit()
+INPUT_PATH = os.path.abspath(INPUT_PATH)
+# 出力ファイル
+OUTPUT_PATH = args.output
+OUTPUT_PATH = os.path.abspath(OUTPUT_PATH)
 
-OUTPUT_FILE = args.output
 
 def main():
-    print(f"📖 新規データを読み込んでいます: {INPUT_FILE}")
+    print(f"📖 新規データを読み込んでいます: {INPUT_PATH}")
     try:
-        df_new_raw = pd.read_csv(INPUT_FILE)
+        df_new_raw = pd.read_csv(INPUT_PATH)
     except Exception as e:
         print(f"❌ 読み込みエラー: {e}")
         return
@@ -56,10 +60,10 @@ def main():
     df_new_summary = pd.merge(new_counts, new_texts, on='mesh_code')
 
     # --- 2. 既存ファイルとの統合（マージ） ---
-    if os.path.exists(OUTPUT_FILE):
-        print(f"🔄 既存の集計ファイル '{OUTPUT_FILE}' を読み込んで統合します...")
+    if os.path.exists(OUTPUT_PATH):
+        print(f"🔄 既存の集計ファイル '{OUTPUT_PATH}' を読み込んで統合します...")
         try:
-            df_existing = pd.read_csv(OUTPUT_FILE)
+            df_existing = pd.read_csv(OUTPUT_PATH)
             
             # カラムチェック
             required_cols = {'mesh_code', 'tweet_count', 'aggregated_text'}
@@ -94,7 +98,7 @@ def main():
             print(f"⚠️ 既存ファイルの読み込みに失敗しました ({e})。新規作成します。")
             df_final = df_new_summary
     else:
-        print(f"🆕 集計ファイル '{OUTPUT_FILE}' を新規作成します。")
+        print(f"🆕 集計ファイル '{OUTPUT_PATH}' を新規作成します。")
         df_final = df_new_summary
 
     # --- 3. ソートと型変換 ---
@@ -125,8 +129,8 @@ def main():
     print("-" * 30)
 
     # --- 5. 保存 ---
-    df_final.to_csv(OUTPUT_FILE, index=False, encoding='utf-8-sig')
-    print(f"✅ 統合完了！ '{OUTPUT_FILE}' に保存しました。")
+    df_final.to_csv(OUTPUT_PATH, index=False, encoding='utf-8-sig')
+    print(f"✅ 統合完了！ '{OUTPUT_PATH}' に保存しました。")
 
 if __name__ == "__main__":
     main()

@@ -1,15 +1,17 @@
 import reverse_geocoder as rg
 import time
 import sys
+import os
 
 # ---------------------------------------------------------
 # 設定
-INPUT_FILE = 'all.txt'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+INPUT_PATH = os.path.join(BASE_DIR, "data", "raw", "all.txt")
 if len(sys.argv) < 2:
-    print("抽出したい都道府県名をローマ字で入力")
+    print("抽出したい都道府県名をローマ字で入力(例: extract_pref.py Tokyo)")
     sys.exit(1)
 TARGET_PREF = sys.argv[1]
-OUTPUT_FILE = f'{TARGET_PREF}_tweets.txt' # 書き出し先
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "raw", f'{TARGET_PREF}_tweets.txt') # 書き出し先
 BATCH_SIZE = 100000             # 一度に処理する行数（メモリに応じて調整）
 # ---------------------------------------------------------
 
@@ -24,8 +26,8 @@ def filter_huge_file():
     batch_coords = [] # (lat, lon) のタプルを格納
     batch_lines = []  # 元の行データを格納
 
-    with open(INPUT_FILE, 'r', encoding='utf-8', errors='ignore') as f_in, \
-         open(OUTPUT_FILE, 'w', encoding='utf-8') as f_out:
+    with open(INPUT_PATH, 'r', encoding='utf-8', errors='ignore') as f_in, \
+         open(OUTPUT_PATH, 'w', encoding='utf-8') as f_out:
 
         for line in f_in:
             line_stripped = line.strip()

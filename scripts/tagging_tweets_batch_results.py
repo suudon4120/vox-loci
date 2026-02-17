@@ -17,17 +17,22 @@ BATCH_ID = input("Batch IDを入力: ")
 parser = argparse.ArgumentParser(description="Batch APIによる処理の結果を元データと結合するプログラム")
 parser.add_argument("--input", type=str, help="処理対象のファイルパス")
 args = parser.parse_args()
+# 入力ファイル
 if args.input:
-    INPUT_FILE = args.input
-    print(f"コマンドライン引数からファイル名を受け取りました: {INPUT_FILE}")
+    INPUT_PATH = args.input
+    print(f"コマンドライン引数からファイルパスを受け取りました: {INPUT_PATH}")
 else:
     print("入力ファイルが指定されていません。")
-    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
-if not INPUT_FILE:
-    print("ファイル名が入力されませんでした。終了します。")
+    INPUT_PATH = input(">>処理するファイルパスを入力してください: ").strip()
+if not INPUT_PATH:
+    print("ファイルパスが入力されませんでした。終了します。")
     sys.exit()
-root, ext = os.path.splitext(INPUT_FILE)
-FINAL_OUTPUT_CSV = f"{root}_batch_tagged.csv"
+INPUT_PATH = os.path.abspath(INPUT_PATH)
+# 出力ファイル
+input_filename = os.path.basename(INPUT_PATH)
+root, ext = os.path.splitext(input_filename)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "interim", f"{root}_batch_tagged.csv")
 
 def main():
     print(f"🔍 Batch ID: {BATCH_ID} のステータスを確認中...")
@@ -88,7 +93,7 @@ def main():
 
     # --- 元データの読み込み ---
     print("📖 元データを読み込んでいます...")
-    with open(INPUT_FILE, 'r', encoding='utf-8') as f:
+    with open(INPUT_PATH, 'r', encoding='utf-8') as f:
         lines = f.readlines()
         
     original_data = []
@@ -157,8 +162,8 @@ def main():
     remaining_cols = [c for c in df_final.columns if c not in final_cols]
     final_cols.extend(remaining_cols)
     
-    df_final[final_cols].to_csv(FINAL_OUTPUT_CSV, index=False, encoding='utf-8-sig')
-    print(f"\n✨ 完了しました！ '{FINAL_OUTPUT_CSV}' を確認してください。")
+    df_final[final_cols].to_csv(OUTPUT_PATH, index=False, encoding='utf-8-sig')
+    print(f"\n✨ 完了しました！ '{OUTPUT_PATH}' を確認してください。")
 
 if __name__ == "__main__":
     main()

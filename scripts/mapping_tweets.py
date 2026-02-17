@@ -12,20 +12,22 @@ parser.add_argument("--input", type=str, help="処理対象のファイルパス
 parser.add_argument("--simple", action="store_true", help="軽量モード（グリッド表示・ポップアップなし）で出力します")
 args = parser.parse_args()
 
-# 入力ファイルの処理
+# 入力ファイル
 if args.input:
-    INPUT_FILE = args.input
+    INPUT_PATH = args.input
 else:
     print("入力ファイルが指定されていません。")
-    INPUT_FILE = input(">>処理するファイル名を入力してください: ").strip()
-
-if not INPUT_FILE:
-    print("ファイル名が入力されませんでした。終了します。")
+    INPUT_PATH = input(">>処理対象のファイルパスを入力してください: ").strip()
+if not INPUT_PATH:
+    print("ファイルパスが入力されませんでした。終了します。")
     sys.exit()
-
-root, ext = os.path.splitext(INPUT_FILE)
+INPUT_PATH = os.path.abspath(INPUT_PATH)
+# 出力ファイル
+input_filename = os.path.basename(INPUT_PATH)
+root, ext = os.path.splitext(input_filename)
 suffix = "_simple" if args.simple else "_detail"
-OUPUT_FILE = f'{root}_map{suffix}.html'
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUT_PATH = os.path.join(BASE_DIR, "data", "interim", f'{root}_map{suffix}.html')
 
 def create_tweet_map(input_file, output_file, is_simple_mode):
     # 1. データの読み込み
@@ -134,4 +136,4 @@ def create_tweet_map(input_file, output_file, is_simple_mode):
     print(f"地図を保存しました: {output_file}")
 
 if __name__ == "__main__":
-    create_tweet_map(INPUT_FILE, OUPUT_FILE, args.simple)
+    create_tweet_map(INPUT_PATH, OUTPUT_PATH, args.simple)

@@ -4,7 +4,8 @@ import sys
 from dotenv import load_dotenv
 
 # APIキーの設定
-load_dotenv()
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 # 環境変数からAPIキーを取得
 API_KEY = os.getenv("OPENAI_API_KEY")
 # APIキーが読み込めていない場合は安全のためエラー終了させる
