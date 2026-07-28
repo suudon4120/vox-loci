@@ -16,4 +16,5 @@ dependencies = [
     "pydub>=0.25.1",
     "reverse-geocoder>=1.5.1",
     "simpleaudio>=1.0.4",
+    "sqlalchemy>=2.0.51",
 ]
