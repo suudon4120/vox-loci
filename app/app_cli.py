@@ -1,84 +1,34 @@
-import pandas as pd
 import os
-import csv
 import datetime
 import jismesh.utils as ju
 import search_mesh  # 検索モジュール
 import voicevox_utils  # 音声合成モジュール
 import llm_utils       # 生成モジュール
 
-# データファイルのパス設定
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SUMMARY_DB_PATH = os.path.join(BASE_DIR, "data", "processed", "mesh_summary_database.csv")
-RAW_DATA_PATH   = os.path.join(BASE_DIR, "data", "processed", "mesh_tweets_integrated.csv")
+# データベース設定をインポート
+from database import SessionLocal, MeshSummary, IntegratedTweet
 
-def load_summary_data():
-    # 要約済みデータ(キャッシュ)を読み込む
-    summary_dict = {}
-    if not os.path.exists(SUMMARY_DB_PATH):
-        print(f"[Warning] データベースが見つかりません: {SUMMARY_DB_PATH}")
-        return summary_dict
-    
+def save_new_summary(db, mesh_code, summary, tweet_count):
+    """生成した要約をデータベースに保存する"""
     try:
-        df = pd.read_csv(SUMMARY_DB_PATH, dtype={'mesh_code': str})
-        # 必要なカラムがあるかチェック
-        if 'mesh_code' not in df.columns or 'summary' not in df.columns:
-            print("[Error] CSVのフォーマットが不正です (mesh_code, summary列が必要です)")
-            return summary_dict
-        
-        df['mesh_code'] = df['mesh_code'].astype(str).str.strip()
-        df = df.dropna(subset=['mesh_code', 'summary'])
-        summary_dict = dict(zip(df['mesh_code'], df['summary']))
-        print(f"要約データベースをロードしました: {len(summary_dict)}件")
-
-    except Exception as e:
-        print(f"[Error] CSV読み込みエラー: {e}")
-
-    return summary_dict
-
-def load_raw_data():
-    # ツイートデータを読み込む
-    raw_dict = {}
-    if not os.path.exists(RAW_DATA_PATH):
-        print(f"[Error] 元データファイルが見つかりません: {RAW_DATA_PATH}")
-        return raw_dict
-
-    try:
-        # csv読み込み
-        df = pd.read_csv(RAW_DATA_PATH, dtype={'mesh_code': str})
-        
-        # 文字列化と空白除去
-        df['mesh_code'] = df['mesh_code'].astype(str).str.strip()
-        
-        # 必要な情報を辞書に格納 (key: mesh_code, value: {text, count})
-        for _, row in df.iterrows():
-            raw_dict[row['mesh_code']] = {
-                "text": str(row['aggregated_text']),
-                "count": row['tweet_count']
-            }
-        print(f"📦 元データ(ツイート)をロード: {len(raw_dict)}件")
-        
-    except Exception as e:
-        print(f"[Error] 元データ読み込みエラー: {e}")
-    return raw_dict
-
-def save_new_summary(mesh_code, summary, tweet_count):
-    """生成した要約をCSVに追記保存する"""
-    try:
-        now_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        # csvモジュールを使って安全に追記（カンマや改行が含まれていてもエスケープしてくれる）
-        with open(SUMMARY_DB_PATH, 'a', newline='', encoding='utf-8') as f:
-            writer = csv.writer(f)
-            writer.writerow([mesh_code, summary, now_str, tweet_count])
-            
+        # 新しいレコードを作成
+        record = MeshSummary(
+            mesh_code=str(mesh_code),
+            summary=summary,
+            tweet_count=tweet_count,
+            updated_at=datetime.datetime.utcnow()
+        )
+        # mergeを使って、すでに存在する場合は上書き、なければ新規追加
+        db.merge(record)
+        db.commit()
         print(f"💾 要約をデータベースに保存しました ({mesh_code})")
     except Exception as e:
+        db.rollback() # エラーが起きたら変更を元に戻す
         print(f"[Error] 保存失敗: {e}")
 
-def search_nearby_with_data(lat, lon, summary_data):
+def search_nearby_with_db(db, lat, lon):
     """
-    指定座標のメッシュにデータがなければ、周囲8方向(3x3)を探索する関数
+    データベースを検索して指定座標のメッシュ、または周囲8方向(3x3)を探索する関数
     
     Returns:
         tuple: (mesh_code, found_type)
@@ -86,17 +36,14 @@ def search_nearby_with_data(lat, lon, summary_data):
     """
     # 中心をチェック
     center_code = str(ju.to_meshcode(lat, lon, level=5)).strip()
-    if center_code in summary_data:
+    
+    # データベースにクエリを投げて検索 (SELECT * FROM mesh_summaries WHERE mesh_code = ...)
+    if db.query(MeshSummary).filter(MeshSummary.mesh_code == center_code).first():
         return center_code, "direct"
     
     # 周囲8方向を探索
-    # 5次メッシュ(250m)の刻み幅
-    # 緯度: 7.5秒 = 7.5/3600 度
-    # 経度: 11.25秒 = 11.25/3600 度
     lat_step = 7.5 / 3600
     lon_step = 11.25 / 3600
-    
-    # 探索順序
     offsets = [
         (-1, 0), (1, 0), (0, -1), (0, 1),
         (-1, -1), (-1, 1), (1, -1), (1, 1)
@@ -107,7 +54,8 @@ def search_nearby_with_data(lat, lon, summary_data):
         neighbor_lon = lon + (dx * lon_step)
         neighbor_code = str(ju.to_meshcode(neighbor_lat, neighbor_lon, level=5)).strip()
         
-        if neighbor_code in summary_data:
+        # 隣接メッシュをデータベース検索
+        if db.query(MeshSummary).filter(MeshSummary.mesh_code == neighbor_code).first():
             return neighbor_code, "neighbor"
             
     # それでもなければ中心のコードを返す（生成用）
@@ -115,92 +63,104 @@ def search_nearby_with_data(lat, lon, summary_data):
 
 def main():
     print("========================================")
-    print("   位置情報 要約読み上げアプリ (Proto)")
+    print("   位置情報 要約読み上げアプリ (DB対応版)")
     print("========================================")
     
-    summary_data = load_summary_data()
-    raw_data = load_raw_data()
+    # データベースセッションを開始
+    db = SessionLocal()
     
-    while True:
-        print("\n" + "="*30)
-        query = input("場所名 または メッシュコード を入力 (qで終了): ")
-        
-        if query.lower() == 'q':
-            print("終了します。")
-            break
+    try:
+        while True:
+            print("\n" + "="*30)
+            query = input("場所名 または メッシュコード を入力 (qで終了): ")
             
-        mesh_code = ""
-        address = ""
-        found_type = "none"
+            if query.lower() == 'q':
+                print("終了します。")
+                break
+                
+            mesh_code = ""
+            address = ""
+            found_type = "none"
 
-        if query.isdigit():
-            # 数字のみ入力された場合 -> 直接メッシュコードとして扱う
-            print(f"🔢 コード直接入力モード")
-            mesh_code = query
-            address = "(コード直接指定のため住所不明)"
-            if mesh_code in summary_data:
-                found_type = "direct"
-            
-        else:
-            # 文字列の場合 -> 場所検索を行う
-            print(f"🔍 地名検索モード: {query}")
-            result = search_mesh.get_mesh_data(query)
-            
-            if not result:
-                print("場所が見つかりませんでした。")
-                continue
-            
-            address = result['address']
-            target_lat = result['lat']
-            target_lon = result['lon']
-
-            mesh_code, found_type = search_nearby_with_data(target_lat, target_lon, summary_data)
-        
-        summary_text = ""
-
-        if found_type in ["direct", "neighbor"]:
-            summary_text = summary_data[mesh_code]
-        
-        elif mesh_code in raw_data:
-            confirm = input("データベースに要約が見つかりません。生成しますか？ (y/n): ")
-
-            if confirm == 'y':
-                print("要約を生成します...")
-
-                # LLM呼び出し
-                tweet_info = raw_data[mesh_code]
-                generated_text = llm_utils.generate_summary(tweet_info['text'], mesh_code)
-
-                # メモリ更新 & ファイル保存
-                summary_data[mesh_code] = generated_text
-                save_new_summary(mesh_code, generated_text, tweet_info['count'])
-
-                summary_text = generated_text
-                found_type = "generated"
+            if query.isdigit():
+                # 数字のみ入力された場合 -> 直接メッシュコードとして扱う
+                print(f"🔢 コード直接入力モード")
+                mesh_code = query
+                address = "(コード直接指定のため住所不明)"
+                # DB検索
+                if db.query(MeshSummary).filter(MeshSummary.mesh_code == mesh_code).first():
+                    found_type = "direct"
+                
             else:
-                print("生成をキャンセルしました。")
-                found_type = "cancelled"
-        else:
-            found_type = "not_found"
+                # 文字列の場合 -> 場所検索を行う
+                print(f"🔍 地名検索モード: {query}")
+                result = search_mesh.get_mesh_data(query)
+                
+                if not result:
+                    print("場所が見つかりませんでした。")
+                    continue
+                
+                address = result['address']
+                target_lat = result['lat']
+                target_lon = result['lon']
 
-        # ------------------------------------------
-        # 共通処理: 結果表示と読み上げ
-        # ------------------------------------------
-        print(f"📍 特定: {address}")
-        
-        if found_type == "not_found":
-            print("この場所にはツイートデータがありませんでした。")
-        elif found_type == "cancelled":
-            print("要約を生成しませんでした。")
-        else:
-            if found_type == "neighbor":
-                print(f"⚠️ 指定地点にはデータがありませんでしたが...")
-                print(f"✅ すぐ近くのメッシュ ({mesh_code}) にデータが見つかりました！")
-            elif found_type == "generated":
-                print("新しく要約を生成しました！")
+                # データベースを使って周辺探索
+                mesh_code, found_type = search_nearby_with_db(db, target_lat, target_lon)
+            
+            summary_text = ""
 
-        print(f"\n🗣️ 【お地蔵さん】\n「{summary_text}」")
-        voicevox_utils.speak_text(summary_text, speaker_id=42)
+            if found_type in ["direct", "neighbor"]:
+                # 要約データをDBから取得
+                summary_record = db.query(MeshSummary).filter(MeshSummary.mesh_code == mesh_code).first()
+                summary_text = summary_record.summary
+            
+            else:
+                # 要約がない場合、生データ(IntegratedTweet)がDBにあるか確認
+                raw_record = db.query(IntegratedTweet).filter(IntegratedTweet.mesh_code == mesh_code).first()
+                
+                if raw_record:
+                    confirm = input("データベースに要約が見つかりません。生成しますか？ (y/n): ")
+
+                    if confirm == 'y':
+                        print("要約を生成します...")
+
+                        # LLM呼び出し
+                        generated_text = llm_utils.generate_summary(raw_record.aggregated_text, mesh_code)
+
+                        # データベースへ保存
+                        save_new_summary(db, mesh_code, generated_text, raw_record.tweet_count)
+
+                        summary_text = generated_text
+                        found_type = "generated"
+                    else:
+                        print("生成をキャンセルしました。")
+                        found_type = "cancelled"
+                else:
+                    found_type = "not_found"
+
+            # ------------------------------------------
+            # 共通処理: 結果表示と読み上げ
+            # ------------------------------------------
+            print(f"📍 特定: {address}")
+            
+            if found_type == "not_found":
+                print("この場所にはツイートデータがありませんでした。")
+            elif found_type == "cancelled":
+                print("要約を生成しませんでした。")
+            else:
+                if found_type == "neighbor":
+                    print(f"⚠️ 指定地点にはデータがありませんでしたが...")
+                    print(f"✅ すぐ近くのメッシュ ({mesh_code}) にデータが見つかりました！")
+                elif found_type == "generated":
+                    print("新しく要約を生成しました！")
+
+            if summary_text:
+                print(f"\n🗣️ 【お地蔵さん】\n「{summary_text}」")
+                voicevox_utils.speak_text(summary_text, speaker_id=42)
+
+    finally:
+        # アプリ終了時に確実にデータベース接続を閉じる
+        db.close()
 
 if __name__ == "__main__":
     main()
