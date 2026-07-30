@@ -14,15 +14,10 @@ from dotenv import load_dotenv
 import search_mesh
 import voicevox_utils
 import llm_utils
-# app_cli.py から必要な関数やパスをインポート
-from app_cli import (
-    load_summary_data, 
-    load_raw_data, 
-    save_new_summary, 
-    search_nearby_with_data,
-    SUMMARY_DB_PATH,
-    RAW_DATA_PATH
-)
+
+# データベース関連と、app_cliから共通関数をインポート
+from database import SessionLocal, MeshSummary, IntegratedTweet
+from app_cli import save_new_summary, search_nearby_with_db
 
 # 保存用ディレクトリ
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -40,20 +35,12 @@ app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/static')
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(LINE_CHANNEL_SECRET)
 
-# データのロード（起動時に一度だけ実行）
-print("データをロード中...")
-summary_data = load_summary_data()
-raw_data = load_raw_data()
-print("ロード完了")
-
 def parse_coordinates(text):
     """
     テキストが '緯度, 経度' の形式か判定し、数値のタプルを返す
-    例: "35.689, 139.691" -> (35.689, 139.691)
     """
     # 全角数字を半角に、全角カンマを半角に、スペース除去
     text = text.replace('，', ',').translate(str.maketrans('０１２３４５６７８９', '0123456789')).strip()
-    
     # 正規表現: 数字(小数含む) , 数字(小数含む)
     match = re.match(r'^(\d+(\.\d+)?)\s*,\s*(\d+(\.\d+)?)$', text)
     if match:
@@ -72,7 +59,7 @@ def get_voicevox_audio(text, speaker_id=42):
         
         s = requests.post(f"{base_url}/synthesis", params={"speaker": speaker_id}, json=q.json())
         if s.status_code != 200: return None, 0
-        
+
         # ファイル保存
         filename = f"{uuid.uuid4()}"
         wav_path = os.path.join(STATIC_DIR, f"{filename}.wav")
@@ -80,57 +67,55 @@ def get_voicevox_audio(text, speaker_id=42):
         
         with open(wav_path, "wb") as f:
             f.write(s.content)
-            
+
         # M4A変換 (LINE用)
         sound = AudioSegment.from_wav(wav_path)
         sound.export(m4a_path, format="mp4")
         
-        duration = int(len(sound)) # ミリ秒
-        
-        # WAVは削除しても良いが、デバッグ用に残しても良い
-        # os.remove(wav_path)
-        
+        duration = int(len(sound))
         return f"{filename}.m4a", duration
     except Exception as e:
         print(f"[Error] 音声生成失敗: {e}")
         return None, 0
 
-def create_reply_messages(mesh_code, found_type, address_label):
+def create_reply_messages(db, mesh_code, found_type, address_label):
     """
     判定結果に基づいて、テキストと音声メッセージを生成する共通関数
     """
     summary_text = ""
     reply_messages = []
     
-    # 文章の決定
     if found_type in ["direct", "neighbor"]:
-        summary_text = summary_data[mesh_code]
+        # DBから要約を取得
+        record = db.query(MeshSummary).filter(MeshSummary.mesh_code == mesh_code).first()
+        summary_text = record.summary if record else "エラーが発生しました。"
+        
         if found_type == "neighbor":
             reply_messages.append(TextSendMessage(text=f"その場所（{address_label}）のデータはないが、すぐ近くの情報を教えるぞ。"))
     
-    elif mesh_code in raw_data:
+    elif found_type == "none":
         # 未生成データがある場合 -> 自動生成
-        reply_messages.append(TextSendMessage(text=f"ふむ、新しい場所（{address_label}）じゃな。詳しく見てみるぞ...（生成中）"))
+        raw_record = db.query(IntegratedTweet).filter(IntegratedTweet.mesh_code == mesh_code).first()
         
-        tweet_info = raw_data[mesh_code]
-        generated_text = llm_utils.generate_summary(tweet_info['text'], mesh_code)
-
-        # 保存
-        summary_data[mesh_code] = generated_text
-        save_new_summary(mesh_code, generated_text, tweet_info['count'])
-        
-        summary_text = generated_text
-        found_type = "generated"
-        
+        if raw_record:
+            reply_messages.append(TextSendMessage(text=f"ふむ、新しい場所（{address_label}）じゃな。詳しく見てみるぞ...（生成中）"))
+            
+            # LLM生成と保存
+            generated_text = llm_utils.generate_summary(raw_record.aggregated_text, mesh_code)
+            save_new_summary(db, mesh_code, generated_text, raw_record.tweet_count)
+            
+            summary_text = generated_text
+            found_type = "generated"
+        else:
+            found_type = "not_found"
+            summary_text = "すまんが、このあたりには何もないようじゃ..."
+    
     else:
         found_type = "not_found"
         summary_text = "すまんが、このあたりには何もないようじゃ..."
 
     # メッセージ構築
-    if found_type == "not_found":
-        reply_messages.append(TextSendMessage(text=f"【お地蔵さん】\n{summary_text}"))
-    else:
-        reply_messages.append(TextSendMessage(text=f"【お地蔵さん】\n{summary_text}"))
+    reply_messages.append(TextSendMessage(text=f"【お地蔵さん】\n{summary_text}"))
 
     # 音声生成
     if found_type != "not_found":
@@ -145,26 +130,19 @@ def create_reply_messages(mesh_code, found_type, address_label):
             
     return reply_messages
 
-def process_coords_request(lat, lon, address_text):
+def process_coords_request(db, lat, lon, address_text):
     """座標から検索するルート"""
-    mesh_code, found_type = search_nearby_with_data(lat, lon, summary_data)
-    return create_reply_messages(mesh_code, found_type, address_text)
+    mesh_code, found_type = search_nearby_with_db(db, lat, lon)
+    return create_reply_messages(db, mesh_code, found_type, address_text)
 
-def process_mesh_direct_request(mesh_code):
+def process_mesh_direct_request(db, mesh_code):
     """メッシュコード直接指定ルート"""
-    # 既存データ確認
-    if mesh_code in summary_data:
-        return create_reply_messages(mesh_code, "direct", f"コード:{mesh_code}")
-    
-    # 元データ確認
-    elif mesh_code in raw_data:
-        # found_type="none" だが create_reply_messages 内で raw_data チェックに引っかかる仕組み
-        return create_reply_messages(mesh_code, "none", f"コード:{mesh_code}")
-    
-    # データなし
+    if db.query(MeshSummary).filter(MeshSummary.mesh_code == mesh_code).first():
+        return create_reply_messages(db, mesh_code, "direct", f"コード:{mesh_code}")
+    elif db.query(IntegratedTweet).filter(IntegratedTweet.mesh_code == mesh_code).first():
+        return create_reply_messages(db, mesh_code, "none", f"コード:{mesh_code}")
     else:
-        return create_reply_messages(mesh_code, "not_found", f"コード:{mesh_code}")
-
+        return create_reply_messages(db, mesh_code, "not_found", f"コード:{mesh_code}")
 
 # --- LINE Bot ハンドラ ---
 
@@ -178,44 +156,43 @@ def callback():
         abort(400)
     return 'OK'
 
-# @app.route('/static/<path:filename>')
-# def send_static(filename):
-#     return send_from_directory(STATIC_DIR, filename)
-
 @handler.add(MessageEvent, message=(TextMessage, LocationMessage))
 def handle_message(event):
     messages = []
+    
+    # ユーザーからのメッセージが来るたびにデータベースの窓口（セッション）を開く
+    db = SessionLocal()
+    
+    try:
+        if isinstance(event.message, LocationMessage):
+            lat = event.message.latitude
+            lon = event.message.longitude
+            messages = process_coords_request(db, lat, lon, event.message.address)
 
-    # 位置情報メッセージ
-    if isinstance(event.message, LocationMessage):
-        lat = event.message.latitude
-        lon = event.message.longitude
-        messages = process_coords_request(lat, lon, event.message.address)
-
-    # テキストメッセージ
-    elif isinstance(event.message, TextMessage):
-        text = event.message.text.strip()
-        
-        # 座標直接入力チェック
-        coords = parse_coordinates(text)
-        if coords:
-            lat, lon = coords
-            messages = process_coords_request(lat, lon, f"{lat},{lon}")
-        
-        # メッシュコード直接入力
-        elif text.isdigit():
-            messages = process_mesh_direct_request(text)
-        
-        # 地名検索
-        else:
-            result = search_mesh.get_mesh_data(text)
-            if result:
-                messages = process_coords_request(result['lat'], result['lon'], result['address'])
+        elif isinstance(event.message, TextMessage):
+            text = event.message.text.strip()
+            
+            coords = parse_coordinates(text)
+            if coords:
+                lat, lon = coords
+                messages = process_coords_request(db, lat, lon, f"{lat},{lon}")
+            
+            elif text.isdigit():
+                messages = process_mesh_direct_request(db, text)
+            
             else:
-                messages = [TextSendMessage(text="場所が見つからんかったわい。")]
+                result = search_mesh.get_mesh_data(text)
+                if result:
+                    messages = process_coords_request(db, result['lat'], result['lon'], result['address'])
+                else:
+                    messages = [TextSendMessage(text="場所が見つからんかったわい。")]
 
-    if messages:
-        line_bot_api.reply_message(event.reply_token, messages)
+        if messages:
+            line_bot_api.reply_message(event.reply_token, messages)
+            
+    finally:
+        # 処理が成功してもエラーが起きても、絶対にセッションを閉じる
+        db.close()
 
 if __name__ == "__main__":
     app.run(port=8000)
