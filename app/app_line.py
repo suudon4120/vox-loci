@@ -29,6 +29,7 @@ LINE_CHANNEL_ACCESS_TOKEN = os.getenv('LINE_CHANNEL_ACCESS_TOKEN')
 LINE_CHANNEL_SECRET = os.getenv('LINE_CHANNEL_SECRET')
 NGROK_DOMAIN = os.getenv('NGROK_DOMAIN')
 NGROK_URL = f"https://{NGROK_DOMAIN}"
+VOICEVOX_URL = os.getenv('VOICEVOX_URL')
 
 app = Flask(__name__, static_folder=STATIC_DIR, static_url_path='/static')
 line_bot_api = LineBotApi(LINE_CHANNEL_ACCESS_TOKEN)
@@ -52,7 +53,7 @@ def get_voicevox_audio(text, speaker_id=42):
     """VOICEVOXでWAV生成 -> M4A変換 -> URL返却"""
     try:
         # VOICEVOX API
-        base_url = "http://host.docker.internal:50021"
+        base_url = VOICEVOX_URL
         q = requests.post(f"{base_url}/audio_query", params={"text": text, "speaker": speaker_id})
         if q.status_code != 200: return None, 0
         

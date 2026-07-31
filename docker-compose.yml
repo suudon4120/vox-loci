@@ -1,0 +1,18 @@
+services:
+  # 1. アプリ本体（今まで作っていたコンテナ）
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - voicevox  # VOICEVOXが先に起動するのを待つ設定
+
+  # 2. VOICEVOXエンジン（公式の画面なしコンテナ）
+  voicevox:
+    image: voicevox/voicevox_engine:cpu-ubuntu22.04-latest
+    ports:
+      - "50021:50021"
