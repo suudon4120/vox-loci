@@ -12,7 +12,6 @@ from dotenv import load_dotenv
 
 # 既存モジュールをインポート
 import search_mesh
-import voicevox_utils
 import llm_utils
 
 # データベース関連と、app_cliから共通関数をインポート
@@ -53,7 +52,7 @@ def get_voicevox_audio(text, speaker_id=42):
     """VOICEVOXでWAV生成 -> M4A変換 -> URL返却"""
     try:
         # VOICEVOX API
-        base_url = "http://localhost:50021"
+        base_url = "http://host.docker.internal:50021"
         q = requests.post(f"{base_url}/audio_query", params={"text": text, "speaker": speaker_id})
         if q.status_code != 200: return None, 0
         
@@ -195,4 +194,5 @@ def handle_message(event):
         db.close()
 
 if __name__ == "__main__":
-    app.run(port=8000)
+    # host="0.0.0.0"により，Dockerコンテナ外からの通信を許可
+    app.run(host="0.0.0.0", port=8000)

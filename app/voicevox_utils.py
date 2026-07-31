@@ -1,5 +1,8 @@
 import requests
-import simpleaudio as sa
+try:
+    import simpleaudio as sa
+except ImportError:
+    sa = None  # Dockerなどの環境では読み込まない
 import io
 import time
 
@@ -7,6 +10,8 @@ import time
 BASE_URL = "http://localhost:50021"
 
 def speak_text(text, speaker_id=42):
+    if sa is None:
+            return #再生できない環境ではスキップ
     """
     テキストをVOICEVOXで音声化して再生する関数
     
