@@ -9,4 +9,5 @@
 related_papers/
 __pycache__/
 static/
-data/audio/*
+data/
+*.db
