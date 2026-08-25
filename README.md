@@ -21,9 +21,8 @@ Vox-Lociは、位置情報付きソーシャルメディアデータから人々
 
 <img src="https://qr-official.line.me/gs/L_217owsky_GW.png?oat_content=qr" alt="LINE Bot QR Code" width="200">
 
-> **⚠️ デモの稼働状況に関するご注意**
-> 本Botのバックエンドシステム（`app_line.py`）は、ローカルサーバーで稼働しているため、不定期での応答となります。
-> 万が一ボットから返信がない場合は、サーバーが停止している可能性がございます。その際は、以下のデモ動作画面（画像）にてシステムの挙動をご確認ください。
+> **⚠️ 初回応答時の遅延について**
+> 本Botのバックエンドはサーバーレス環境（Cloud Run）で稼働しています。しばらくアクセスがなかった後の初回送信時は、サーバーの起動（コールドスタート）により、応答までに数秒〜十数秒程度の時間がかかる場合があります。
 
 ![Demo](docs/images/demo.png)
 
@@ -32,11 +31,12 @@ Vox-Lociは、位置情報付きソーシャルメディアデータから人々
 | Category      | Technologies                                                                                                                                                             |
 | :------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Language** | ![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)                                                                    |
-| **AI / NLP** | ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white) ![Gemini](https://img.shields.io/badge/Gemini-8E75B2?style=for-the-badge&logo=google&logoColor=white) |
+| **AI / NLP** | ![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)  |
 | **Voice** | ![VOICEVOX](https://img.shields.io/badge/VOICEVOX-A4C639?style=for-the-badge)                                                                                            |
 | **Platform** | ![LINE API](https://img.shields.io/badge/LINE_Messaging_API-00C300?style=for-the-badge&logo=line&logoColor=white)                                                        |
-| **Data** | ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white)  |
-| **GIS / Viz** | ![Folium](https://img.shields.io/badge/Folium-2E70D5?style=for-the-badge)                                                                                                |
+| **Database** | ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white) ![Neon](https://img.shields.io/badge/Neon-00E599?style=for-the-badge&logo=neon&logoColor=black) |
+| **Infrastructure** | ![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white) ![Google Cloud Run](https://img.shields.io/badge/Cloud_Run-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white) |
+| **Data / GIS** | ![Pandas](https://img.shields.io/badge/Pandas-150458?style=for-the-badge&logo=pandas&logoColor=white) ![Folium](https://img.shields.io/badge/Folium-2E70D5?style=for-the-badge) |
 | **Environment**| ![uv](https://img.shields.io/badge/uv-DE3423?style=for-the-badge)  |
 | **VCS** | ![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)                                                                    |
 
@@ -74,25 +74,35 @@ Vox-Lociは、位置情報付きソーシャルメディアデータから人々
 * `assign_mesh.py`: 座標情報を基にメッシュコードを付与。
 * `aggregate_mesh.py`: メッシュごとにツイートを結合・集計。
 * `mapping_tweets.py`: 処理済みデータを地図上にプロットし、HTMLとして可視化。
+* `csv_to_sqlite.py`: 処理済みCSVからPostgreSQLへの初期データ移行スクリプト。
 
 ### アプリケーション (`app/`)
 * `app_line.py`: LINE Botのメインサーバープログラム。
 * `app_cli.py`: CLI上で動作確認を行うためのアプリケーション。
-* `llm_utils.py`: LLM（OpenAI / Gemini）との対話や要約生成の管理。
+* `database.py`: SQLAlchemyを用いたPostgreSQLのスキーマ定義およびDB接続管理。
+* `llm_utils.py`: LLM（OpenAI）による物語生成。
 * `search_mesh.py`: 検索クエリから該当するメッシュコードを特定。
 * `voicevox_utils.py`: 要約テキストをVOICEVOX APIに送信し、音声を生成。
 
-## 環境構築 (参考)
+## ローカル環境での起動手順 (参考)
 
-1. **依存関係のインストール**
-   ```bash
-   uv sync
-2. **環境変数の設定**
-   `.env` ファイルを作成し、必要なAPIキーを設定します。
+本プロジェクトは `Docker Compose` を用いて、アプリケーション本体とVOICEVOX APIコンテナを統合管理しています。
+※注: 実行にはリポジトリに含まれない初期データベースファイルまたはCSVデータが必要です。
+
+1. **環境変数の設定**
+   プロジェクトルートに `.env` ファイルを作成し、必要な接続情報を設定します。
 
    ```env
    OPENAI_API_KEY=your_openai_api_key
    GEMINI_API_KEY=your_gemini_api_key
    LINE_CHANNEL_ACCESS_TOKEN=your_line_access_token
    LINE_CHANNEL_SECRET=your_line_secret
+   DATABASE_URL=postgresql://user:password@host/dbname
    ```
+1. **コンテナのビルドと起動**
+   Dockerがインストールされた環境で以下のコマンドを実行し、アプリとVOICEVOXの2つのコンテナを立ち上げます。
+
+   ``` Bash
+   docker compose up -d --build
+   ```
+   起動後、ローカル（http://localhost:8000）にてWebhookの受け付けが開始され、内部ネットワーク経由でVOICEVOXコンテナ（ポート50021）と通信を行います。
