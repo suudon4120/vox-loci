@@ -196,4 +196,6 @@ def handle_message(event):
 
 if __name__ == "__main__":
     # host="0.0.0.0"により，Dockerコンテナ外からの通信を許可
-    app.run(host="0.0.0.0", port=8000)
+    # Cloud Runから割り当てられる環境変数PORTを取得し，なければデフォルトで8000を使用
+    port = int(os.getenv("PORT", 8000))
+    app.run(host="0.0.0.0", port=port)

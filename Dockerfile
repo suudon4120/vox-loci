@@ -17,8 +17,9 @@ RUN uv sync --no-install-project
 # 5. プロジェクトのソースコード全体をコピー
 COPY . .
 
-# 6. アプリケーションが使うポート番号を明示
-EXPOSE 8000
+# 6. アプリケーションが使うポート番号を明示 (Cloud Run上ではPORTが上書き)
+ENV PORT=8000
+EXPOSE ${PORT}
 
 # 7. コンテナを起動した時に実行するコマンド
 CMD ["uv", "run", "python", "app/app_line.py"]
