@@ -1,12 +1,22 @@
+import os
 import datetime
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
 
-# データベースファイルの保存先（dataディレクトリ内に vox_loci.db として作成）
-DATABASE_URL = "sqlite:///./data/vox_loci.db"
+base_dir = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(base_dir, ".env"))
+DATABASE_URL = os.getenv('DATABASE_URL')
 
-# データベースエンジンの作成
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+if DATABASE_URL:
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    # PostgreSQL用のエンジン作成
+    engine = create_engine(DATABASE_URL)
+else:
+    # 環境変数が未指定の場合はローカルのSQLiteにフォールバック
+    engine = create_engine("sqlite:///./data/vox_loci.db", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

@@ -13,6 +13,7 @@ dependencies = [
     "line-bot-sdk>=3.22.0",
     "openai>=2.17.0",
     "pandas>=3.0.0",
+    "psycopg2-binary>=2.9.12",
     "pydub>=0.25.1",
     "reverse-geocoder>=1.5.1",
     "sqlalchemy>=2.0.51",
