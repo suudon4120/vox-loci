@@ -5,7 +5,7 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import declarative_base, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-base_dir = os.path.dirname(os.path.abspath(__file__))
+base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(base_dir, ".env"))
 DATABASE_URL = os.getenv('DATABASE_URL')
 
@@ -16,7 +16,8 @@ if DATABASE_URL:
     engine = create_engine(DATABASE_URL)
 else:
     # 環境変数が未指定の場合はローカルのSQLiteにフォールバック
-    engine = create_engine("sqlite:///./data/vox_loci.db", connect_args={"check_same_thread": False})
+    sqlite_path = os.path.join(base_dir, "data", "vox_loci.db")
+    engine = create_engine(f"sqlite:///{sqlite_path}", connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
