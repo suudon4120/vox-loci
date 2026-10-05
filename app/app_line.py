@@ -53,7 +53,7 @@ def get_voicevox_audio(text, speaker_id=42):
     """VOICEVOXでWAV生成 -> M4A変換 -> URL返却"""
     try:
         # VOICEVOX API
-        base_url = VOICEVOX_URL
+        base_url = VOICEVOX_URL.rstrip('/')
         q = requests.post(f"{base_url}/audio_query", params={"text": text, "speaker": speaker_id})
         if q.status_code != 200: return None, 0
         
@@ -144,6 +144,27 @@ def process_mesh_direct_request(db, mesh_code):
     else:
         return create_reply_messages(db, mesh_code, "not_found", f"コード:{mesh_code}")
 
+def show_loading_animation(chat_id: str, loading_seconds: int = 20):
+    """
+    LINEのトーク画面にローディングアニメーション（「・・・」）を表示する
+    - chat_id: 送信先ユーザーの user_id
+    - loading_seconds: 最大表示秒数（5〜60の間で5の倍数を指定可能）
+    """
+    url = "https://api.line.me/v2/bot/chat/loading/start"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {LINE_CHANNEL_ACCESS_TOKEN}"
+    }
+    payload = {
+        "chatId": chat_id,
+        "loadingSeconds": loading_seconds
+    }
+    try:
+        # アニメーション表示の失敗で本処理を止めないようタイムアウトを短めに設定
+        requests.post(url, headers=headers, json=payload, timeout=2.0)
+    except Exception as e:
+        print(f"Loading animation error: {e}")
+
 # --- LINE Bot ハンドラ ---
 
 @app.route("/callback", methods=['POST'])
@@ -158,6 +179,8 @@ def callback():
 
 @handler.add(MessageEvent, message=(TextMessage, LocationMessage))
 def handle_message(event):
+    show_loading_animation(event.source.user_id, loading_seconds=20)
+
     messages = []
     
     # ユーザーからのメッセージが来るたびにデータベースの窓口（セッション）を開く
